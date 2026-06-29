@@ -1,0 +1,19 @@
+{
+  "name": "PracticApp",
+  "short_name": "PracticApp",
+  "description": "Trackeá tus sesiones de práctica de cello",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#13111C",
+  "theme_color": "#13111C",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
