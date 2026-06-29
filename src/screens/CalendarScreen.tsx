@@ -1,14 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSessions } from '../SessionsContext';
-import { useSync } from '../SyncContext';
 import { formatDuration, toDayKey } from '../format';
 import { MonthCalendar } from '../components/MonthCalendar';
 
 export default function CalendarScreen() {
   const navigate = useNavigate();
   const { totals, daysWithSessions } = useSessions();
-  const sync = useSync();
 
   const now = new Date();
   const [view, setView] = useState({ year: now.getFullYear(), month: now.getMonth() });
@@ -26,19 +24,6 @@ export default function CalendarScreen() {
     <div className="screen">
       <div className="topbar">
         <h1>🎻 Mi práctica</h1>
-        <button
-          className="sync-btn"
-          onClick={() => navigate('/sync')}
-          aria-label="Respaldo"
-          title="Respaldo"
-        >
-          <span
-            className={`sync-dot ${
-              !sync.connected ? 'off' : sync.dirty ? 'pending' : 'done'
-            }`}
-          />
-          ☁
-        </button>
       </div>
 
       <div className="stats">

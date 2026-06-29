@@ -4,41 +4,40 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from 'react';
 import { useSessions } from './SessionsContext';
 import {
-  createSpreadsheet,
   getAccessToken,
+  createSpreadsheet,
   pullMine,
   appendRows,
-  deleteRowsByIds,
+  markDeleted,
   fetchMyIds,
-  fetchSheetGid,
-  clearToken,
+  ensureHeader,
+  preloadAuth,
 } from './sync';
 import { Session } from './types';
 
 const CONFIG_KEY = 'practicapp:sync:v1';
 
 // App-wide config baked at build time (see .env.example). The Client ID is
-// public (not a secret); the spreadsheet id pins one shared backup for everyone.
+// public (not a secret). The sheet id is optional: if unset, the app creates the
+// sheet once and shows its id to pin in the env var for the other devices.
 const ENV_CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '').trim();
 const ENV_SHEET_ID = (import.meta.env.VITE_BACKUP_SPREADSHEET_ID ?? '').trim();
+const ENV_READY = ENV_CLIENT_ID.length > 0;
 
 type SyncConfig = {
-  clientId: string;
-  spreadsheetId: string | null;
-  /** Display name written into the 'Nombre' column; per-device. */
+  /** Display name written into the 'Nombre' column; per-device, set at the gate. */
   name: string;
-  /** Numeric gid of the data tab, cached for row deletes. */
-  sheetGid: number | null;
+  /** Id of the app-created sheet, until it's pinned via env var. */
+  spreadsheetId: string | null;
   /**
-   * Session ids this device believes are already rows in the sheet. Drives the
-   * incremental sync: we only append ids not here, and delete ids here but gone
-   * locally. null = never seeded (cold start) → reconcile against the sheet.
+   * Session ids this device has pushed to the sheet. Drives incremental sync and
+   * deletes. null = never synced (cold start): we never delete on a cold start,
+   * we only append our local rows that aren't in the sheet yet.
    */
   pushedIds: string[] | null;
   lastBackupAt: number | null;
@@ -46,21 +45,14 @@ type SyncConfig = {
 };
 
 const EMPTY: SyncConfig = {
-  clientId: '',
-  spreadsheetId: null,
   name: '',
-  sheetGid: null,
+  spreadsheetId: null,
   pushedIds: null,
   lastBackupAt: null,
   lastBackupSig: null,
 };
 
-/** Client ID actually used: env var wins, falls back to a locally pasted one. */
-function resolveClientId(cfg: SyncConfig): string {
-  return ENV_CLIENT_ID || cfg.clientId.trim();
-}
-
-/** Spreadsheet id actually used: env var wins, falls back to a bootstrapped one. */
+/** Sheet id actually used: env var wins, else the app-created one (bootstrap). */
 function resolveSheetId(cfg: SyncConfig): string {
   return ENV_SHEET_ID || (cfg.spreadsheetId ?? '');
 }
@@ -89,28 +81,17 @@ function signature(sessions: Session[]): string {
   return `${sessions.length}:${h >>> 0}`;
 }
 
-type Status = 'idle' | 'working';
-
 type SyncContextValue = {
-  configured: boolean;
-  connected: boolean;
-  status: Status;
-  error: string | null;
-  dirty: boolean;
-  lastBackupAt: number | null;
-  spreadsheetId: string;
-  /** True when the Client ID comes from a build env var (field hidden in UI). */
-  clientIdLocked: boolean;
-  /** True when the spreadsheet id comes from a build env var (already pinned). */
-  sheetIdLocked: boolean;
-  setClientId: (id: string) => void;
-  clientId: string;
-  name: string;
-  setName: (name: string) => void;
+  /** Whether a name has been entered (gates the app behind the name screen). */
+  hasName: boolean;
+  /** Whether Google needs an interactive sign-in again (shows the reconnect banner). */
+  needsAuth: boolean;
+  /** Enter the app: save the name, consent to Google, pull existing history. */
+  signIn: (name: string) => Promise<void>;
+  /** Interactive Google sign-in retry (used by the reconnect banner). */
   connect: () => Promise<void>;
-  backupNow: () => Promise<void>;
-  restore: () => Promise<Session[]>;
-  disconnect: () => void;
+  /** Id of the app-created sheet to pin in the env var (null once pinned). */
+  pinSheetId: string | null;
 };
 
 const SyncContext = createContext<SyncContextValue | null>(null);
@@ -118,9 +99,13 @@ const SyncContext = createContext<SyncContextValue | null>(null);
 export function SyncProvider({ children }: { children: ReactNode }) {
   const { sessions, replaceAll } = useSessions();
   const [config, setConfig] = useState<SyncConfig>(() => loadConfig());
-  const [status, setStatus] = useState<Status>('idle');
-  const [error, setError] = useState<string | null>(null);
-  const autoTried = useRef(false);
+  const [working, setWorking] = useState(false);
+  const [needsAuth, setNeedsAuth] = useState(false);
+
+  // Warm up Google Identity Services so the consent popup isn't blocked.
+  useEffect(() => {
+    if (ENV_READY) preloadAuth();
+  }, []);
 
   const persist = useCallback((c: SyncConfig) => {
     setConfig(c);
@@ -129,177 +114,149 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   const sig = useMemo(() => signature(sessions), [sessions]);
   const dirty = sig !== config.lastBackupSig;
-  const clientId = resolveClientId(config);
-  const sheetId = resolveSheetId(config);
   const hasName = config.name.trim().length > 0;
-  const configured = clientId.length > 0 && hasName;
-  const connected = configured && sheetId.length > 0;
-
-  const setClientId = useCallback(
-    (id: string) => persist({ ...loadConfig(), clientId: id.trim() }),
-    [persist],
-  );
-
-  const setName = useCallback(
-    (name: string) => persist({ ...loadConfig(), name: name.trim() }),
-    [persist],
-  );
+  const ready = ENV_READY && hasName;
 
   /**
    * Incremental sync: append newly-created sessions and delete removed ones,
-   * touching only the rows that changed (no full-sheet rewrite). When there is
-   * nothing to add or delete it makes no write at all — so just opening the app
-   * is a no-op. interactive=true is allowed to pop the Google consent UI.
+   * touching only the rows that changed (no full-sheet rewrite). Opening the app
+   * with nothing pending makes no write at all. On a cold start we never delete —
+   * we only append our local rows missing from the sheet — so logging in on a new
+   * device or alongside existing rows merges instead of wiping.
    */
   const doBackup = useCallback(
     async (interactive: boolean) => {
       const cfg = loadConfig();
-      const cid = resolveClientId(cfg);
       const name = cfg.name.trim();
-      if (!cid) throw new Error('Falta el Client ID de Google.');
+      if (!ENV_READY) throw new Error('Faltan las variables de entorno de Google.');
       if (!name) throw new Error('Primero ingresá tu nombre.');
 
       const localIds = sessions.map((s) => s.id);
-      // Cheap pre-check against our last-known sheet state to skip needless work
-      // and avoid even acquiring a token when there is nothing to do.
-      if (cfg.pushedIds && cfg.lastBackupSig === signature(sessions)) return;
+      // Nothing changed since the last sync → skip (don't even acquire a token).
+      if (cfg.pushedIds && cfg.lastBackupSig === signature(sessions)) {
+        setNeedsAuth(false);
+        return;
+      }
 
-      setStatus('working');
-      setError(null);
+      setWorking(true);
       try {
-        const token = await getAccessToken(cid, interactive);
+        const token = await getAccessToken(ENV_CLIENT_ID, interactive);
+        // Use the pinned/created sheet, or create one the first time ever.
         let spreadsheetId = resolveSheetId(cfg);
-        if (!spreadsheetId) spreadsheetId = await createSpreadsheet(token);
+        let createdId: string | null = null;
+        if (!spreadsheetId) {
+          spreadsheetId = await createSpreadsheet(token);
+          createdId = spreadsheetId;
+        }
+        const coldStart = cfg.pushedIds == null;
+        // A freshly created sheet already has its header.
+        if (coldStart && !createdId) await ensureHeader(token, spreadsheetId);
 
-        // Cold start: learn which of our ids are already in the sheet so we
-        // never duplicate rows (handles new devices and the old full-rewrite).
-        const pushed =
-          cfg.pushedIds ?? [...(await fetchMyIds(token, spreadsheetId, name))];
-        const pushedSet = new Set(pushed);
+        // Adds dedupe against what's actually in the sheet; deletes only ever
+        // remove rows this device previously pushed (empty set on a cold start).
+        const sheetIds =
+          coldStart && !createdId
+            ? await fetchMyIds(token, spreadsheetId, name)
+            : new Set(cfg.pushedIds);
+        const knownPushed = cfg.pushedIds ?? [];
         const localSet = new Set(localIds);
 
-        const toAdd = sessions.filter((s) => !pushedSet.has(s.id));
-        const toDelete = pushed.filter((id) => !localSet.has(id));
+        const toAdd = sessions.filter((s) => !sheetIds.has(s.id));
+        const toDelete = knownPushed.filter((id) => !localSet.has(id));
 
         if (toAdd.length) await appendRows(token, spreadsheetId, toAdd, name);
-
-        let sheetGid = cfg.sheetGid;
-        if (toDelete.length) {
-          if (sheetGid == null) sheetGid = await fetchSheetGid(token, spreadsheetId);
-          await deleteRowsByIds(token, spreadsheetId, toDelete, name, sheetGid);
-        }
+        // Soft-delete: tombstone removed rows instead of deleting them.
+        if (toDelete.length) await markDeleted(token, spreadsheetId, toDelete, name);
 
         persist({
           ...cfg,
-          spreadsheetId,
-          sheetGid,
+          spreadsheetId: createdId ?? cfg.spreadsheetId,
           pushedIds: localIds,
           lastBackupAt: Date.now(),
           lastBackupSig: signature(sessions),
         });
+        setNeedsAuth(false);
       } finally {
-        setStatus('idle');
+        setWorking(false);
       }
     },
     [sessions, persist],
   );
 
   const connect = useCallback(() => doBackup(true), [doBackup]);
-  const backupNow = useCallback(async () => {
-    try {
-      await doBackup(true);
-    } catch (e) {
-      setError((e as Error).message);
-      throw e;
-    }
-  }, [doBackup]);
 
-  const restore = useCallback(async (): Promise<Session[]> => {
+  /** Pull this user's rows from the sheet into local storage (replacing local). */
+  const restore = useCallback(async () => {
     const cfg = loadConfig();
-    const cid = resolveClientId(cfg);
-    const sheet = resolveSheetId(cfg);
     const name = cfg.name.trim();
-    if (!cid || !sheet)
-      throw new Error('Todavía no hay una planilla conectada.');
-    if (!name) throw new Error('Primero ingresá tu nombre.');
-    setStatus('working');
-    setError(null);
-    try {
-      const token = await getAccessToken(cid, true);
-      const restored = await pullMine(token, sheet, name);
-      replaceAll(restored);
-      // These rows are already in the sheet: seed pushedIds so we don't re-append.
-      persist({
-        ...cfg,
-        pushedIds: restored.map((s) => s.id),
-        lastBackupSig: signature(restored),
-        lastBackupAt: Date.now(),
-      });
-      return restored;
-    } catch (e) {
-      setError((e as Error).message);
-      throw e;
-    } finally {
-      setStatus('idle');
-    }
+    const sheetId = resolveSheetId(cfg);
+    if (!sheetId) return;
+    const token = await getAccessToken(ENV_CLIENT_ID, false);
+    const restored = await pullMine(token, sheetId, name);
+    replaceAll(restored);
+    // These rows are already in the sheet: seed pushedIds so we don't re-append.
+    persist({
+      ...loadConfig(),
+      pushedIds: restored.map((s) => s.id),
+      lastBackupSig: signature(restored),
+      lastBackupAt: Date.now(),
+    });
   }, [replaceAll, persist]);
 
-  const disconnect = useCallback(() => {
-    clearToken();
-    persist({ ...EMPTY, clientId: config.clientId, name: config.name });
-  }, [persist, config.clientId, config.name]);
+  /**
+   * Gate "login": store the name, get Google consent (interactive, from the
+   * button click), and on a fresh device pull existing history for that name.
+   * Pushing of any local-only sessions is left to the auto-sync effect, which
+   * runs with fresh state once the gate closes (avoids stale-closure deletes).
+   */
+  const signIn = useCallback(
+    async (rawName: string) => {
+      const name = rawName.trim();
+      if (!name) return;
+      // Persist the name now so doBackup/restore can read it, but keep the gate
+      // up (no setConfig) until we're done so it can show a spinner.
+      saveConfig({ ...loadConfig(), name });
+      setWorking(true);
+      try {
+        if (ENV_READY) {
+          const token = await getAccessToken(ENV_CLIENT_ID, true);
+          // Make sure a sheet exists now, so its id is available to pin and so a
+          // fresh device can pull existing history right away.
+          let sheetId = resolveSheetId(loadConfig());
+          if (!sheetId) {
+            sheetId = await createSpreadsheet(token);
+            saveConfig({ ...loadConfig(), spreadsheetId: sheetId });
+          }
+          if (sessions.length === 0) await restore();
+        }
+      } catch {
+        // Consent cancelled/failed → enter anyway; the banner offers a retry.
+        setNeedsAuth(true);
+      } finally {
+        setWorking(false);
+        setConfig(loadConfig()); // flip the gate: name is now in React state
+      }
+    },
+    [sessions.length, restore],
+  );
 
-  // Automatic, silent backup: when connected and there are unsaved changes,
-  // try once shortly after they happen. No popups — if Google needs UI we just
-  // stay "dirty" until the user backs up manually.
+  // Automatic, silent backup: when ready and there are unsynced changes, try once
+  // shortly after they happen. No popups — a failure just raises the reconnect
+  // banner so the user can re-grant Google access interactively.
   useEffect(() => {
-    if (!connected || !dirty || status === 'working') return;
+    if (!ready || !dirty || working) return;
     const t = setTimeout(() => {
-      autoTried.current = true;
-      doBackup(false).catch(() => {
-        /* silent: needs reconnect, surfaced via `dirty` in the UI */
-      });
+      doBackup(false).catch(() => setNeedsAuth(true));
     }, 4000);
     return () => clearTimeout(t);
-  }, [connected, dirty, status, doBackup]);
+  }, [ready, dirty, working, doBackup]);
+
+  // Show the created sheet id to pin until it's set in the env var.
+  const pinSheetId = !ENV_SHEET_ID ? config.spreadsheetId : null;
 
   const value = useMemo(
-    () => ({
-      configured,
-      connected,
-      status,
-      error,
-      dirty,
-      lastBackupAt: config.lastBackupAt,
-      spreadsheetId: sheetId,
-      clientIdLocked: ENV_CLIENT_ID.length > 0,
-      sheetIdLocked: ENV_SHEET_ID.length > 0,
-      clientId,
-      name: config.name,
-      setName,
-      setClientId,
-      connect,
-      backupNow,
-      restore,
-      disconnect,
-    }),
-    [
-      configured,
-      connected,
-      status,
-      error,
-      dirty,
-      config.lastBackupAt,
-      sheetId,
-      clientId,
-      config.name,
-      setName,
-      setClientId,
-      connect,
-      backupNow,
-      restore,
-      disconnect,
-    ],
+    () => ({ hasName, needsAuth, signIn, connect, pinSheetId }),
+    [hasName, needsAuth, signIn, connect, pinSheetId],
   );
 
   return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;

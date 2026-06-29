@@ -78,29 +78,35 @@ una columna `Nombre`. Así varias personas comparten una planilla sin pisarse.
 La escritura es **incremental, fila por fila** (no reescribe la planilla):
 
 - **Crear sesión** (carga manual o parar el timer) → **agrega una fila** (append).
-- **Borrar sesión** → ubica esa fila por su `ID` y la elimina.
+- **Borrar sesión** → **borrado lógico**: marca la columna `Borrado` en `TRUE`. La
+  fila nunca se elimina, así no se pierde nada de la planilla por error. Las filas
+  marcadas se ignoran al leer/restaurar.
 - **Abrir la app sin cambios** → no escribe nada. Se lleva un registro local de
   los IDs ya subidos para no duplicar; en un dispositivo nuevo reconcilia una vez
   contra la planilla.
-- **Restaurar desde la planilla** → recupera **solo tus** sesiones (las que están
-  a tu nombre) en este dispositivo.
+- **Dispositivo nuevo** → al poner tu nombre baja **solo tus** sesiones (las que
+  están a tu nombre) desde la planilla.
+
+No hay pantalla de configuración: al abrir la app por primera vez te pide **tu
+nombre** (no es un login con contraseña, solo el nombre, que queda guardado) y, en
+ese mismo paso, pide el permiso de Google una vez. En un dispositivo nuevo, al
+poner tu nombre, baja tu historial de la planilla.
 
 ### Modelo de cuentas: una sola cuenta de Google para todos
 
-Con el scope mínimo `drive.file` la app solo puede tocar la planilla que **ella
-misma creó con esa cuenta**. Por eso todos los dispositivos se loguean con **la
-misma cuenta de Google** (la dueña de la planilla) — una vez por dispositivo; el
-token se renueva solo en segundo plano. El login de Google autoriza a una cuenta
-en *ese* dispositivo: no hay forma, sin backend, de que un login cubra a otros.
+Todos los dispositivos se loguean con **la misma cuenta de Google** (la dueña de
+la planilla) — una vez por dispositivo; el token se renueva solo en segundo plano.
+El login de Google autoriza a una cuenta en *ese* dispositivo: no hay forma, sin
+backend, de que un login cubra a otros. Scope mínimo `drive.file`: **la app crea
+la planilla** y solo toca ese archivo, no el resto de tu Drive. La planilla queda
+en **tu Drive** como una planilla normal (la ves, la abrís y la compartís vos; lo
+acotado es la visión de la *app*, no la tuya).
 
-### Configuración (env vars, una sola vez)
-
-El Client ID y el ID de la planilla se fijan por variables de entorno de build
-(ver `.env.example`), así no hay que configurarlos en cada dispositivo:
+### Configuración (env vars)
 
 ```
-VITE_GOOGLE_CLIENT_ID=...apps.googleusercontent.com
-VITE_BACKUP_SPREADSHEET_ID=<id de la planilla>
+VITE_GOOGLE_CLIENT_ID=...apps.googleusercontent.com   # obligatorio
+VITE_BACKUP_SPREADSHEET_ID=<id de la planilla>         # se completa tras el bootstrap
 ```
 
 Pasos:
@@ -112,15 +118,13 @@ Pasos:
    web**, agregando en *Orígenes de JavaScript* tus URLs (`http://localhost:5173`
    y la de deploy). Copiá el **Client ID** → `VITE_GOOGLE_CLIENT_ID`.
 2. **Bootstrap de la planilla** (una vez): dejá `VITE_BACKUP_SPREADSHEET_ID`
-   vacío, abrí la app con la cuenta compartida, poné tu nombre y tocá *Conectar*.
-   La app crea la planilla y te muestra su **ID** en la pantalla Respaldo.
-   Pegalo en `VITE_BACKUP_SPREADSHEET_ID` y volvé a deployar. Listo: queda fija.
+   vacío, abrí la app con la cuenta compartida y poné tu nombre. La app **crea la
+   planilla** en tu Drive y te muestra su **ID** en un cartelito. Pegá ese ID en
+   `VITE_BACKUP_SPREADSHEET_ID` y volvé a deployar: queda fija para todos.
 
 Notas:
 - Es una app web (sin servidor), así que el respaldo automático corre mientras la
   app está abierta. Apenas la abrís, sube lo pendiente (solo lo nuevo/borrado).
-- Como cada operación toca solo su propia fila, dos personas pueden escribir a la
-  vez sin pisarse. Solo queda una ventana de carrera mínima al borrar (se leen las
-  filas y luego se elimina por índice); para un grupo chico es despreciable.
-- Ni el Client ID ni el ID de la planilla son secretos. Si no usás env vars, la
-  pantalla Respaldo sigue dejando pegar el Client ID a mano (fallback).
+- Como cada operación toca solo su propia fila (append, o marcar `Borrado`), dos
+  personas pueden escribir a la vez sin pisarse y nunca se elimina nada.
+- Ni el Client ID ni el ID de la planilla son secretos.
