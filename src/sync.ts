@@ -31,9 +31,14 @@ declare global {
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
 const SHEET_TAB = 'Sesiones';
+// 'Nombre' is the first column: it identifies whose session each row is, so
+// many people can share one spreadsheet. Each person owns the rows with their
+// own name.
 const HEADER = [
-  'Fecha', 'Inicio', 'Minutos', 'Foco', 'Notas', 'ID', 'startedAt_ms', 'durationSec',
+  'Nombre', 'Fecha', 'Inicio', 'Minutos', 'Foco', 'Notas', 'ID', 'startedAt_ms', 'durationSec',
 ];
+// Spreadsheet column span (A..I = 9 columns, matching HEADER).
+const RANGE = 'A2:I100000';
 
 let gisPromise: Promise<void> | null = null;
 let tokenClient: TokenClient | null = null;
@@ -161,24 +166,32 @@ async function api(token: string, url: string, init?: RequestInit) {
   return res.json();
 }
 
-/** Create the backup spreadsheet and return its id. */
+/** Create the shared backup spreadsheet (with header row) and return its id. */
 export async function createSpreadsheet(token: string): Promise<string> {
   const data = await api(token, 'https://sheets.googleapis.com/v4/spreadsheets', {
     method: 'POST',
     body: JSON.stringify({
-      properties: { title: 'PracticApp · Backup' },
+      properties: { title: 'PracticApp · Respaldo compartido' },
       sheets: [{ properties: { title: SHEET_TAB } }],
     }),
   });
-  return data.spreadsheetId as string;
+  const spreadsheetId = data.spreadsheetId as string;
+  // Write the header into row 1 so appends land at row 2+ and reads (A2:I) work.
+  await api(
+    token,
+    `${valuesUrl(spreadsheetId)}!A1?valueInputOption=RAW`,
+    { method: 'PUT', body: JSON.stringify({ values: [HEADER] }) },
+  );
+  return spreadsheetId;
 }
 
-function sessionToRow(s: Session): (string | number)[] {
+function sessionToRow(s: Session, name: string): (string | number)[] {
   const inicio = new Date(s.startedAt).toLocaleTimeString('es-AR', {
     hour: '2-digit',
     minute: '2-digit',
   });
   return [
+    name,
     s.date,
     inicio,
     Math.round(s.durationSec / 60),
@@ -190,51 +203,144 @@ function sessionToRow(s: Session): (string | number)[] {
   ];
 }
 
+/** Name stored in a sheet row (column A), trimmed. */
+function rowName(row: string[]): string {
+  return (row[0] ?? '').trim();
+}
+
+/** True for rows that look like real session data (valid date in column B). */
+function isDataRow(row: string[]): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test((row[1] ?? '').trim());
+}
+
 function rowToSession(row: string[]): Session | null {
-  const date = (row[0] ?? '').trim();
+  const date = (row[1] ?? '').trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
   const durationSec =
-    Number(row[7]) || Math.round((Number(row[2]) || 0) * 60);
+    Number(row[8]) || Math.round((Number(row[3]) || 0) * 60);
   if (!durationSec || durationSec < 1) return null;
-  const startedAt = Number(row[6]) || new Date(`${date}T12:00:00`).getTime();
+  const startedAt = Number(row[7]) || new Date(`${date}T12:00:00`).getTime();
   return {
-    id: (row[5] ?? '').trim() || makeId(),
+    id: (row[6] ?? '').trim() || makeId(),
     date,
     startedAt,
     durationSec,
-    focus: (row[3] ?? '').trim() || undefined,
-    notes: (row[4] ?? '').trim() || undefined,
+    focus: (row[4] ?? '').trim() || undefined,
+    notes: (row[5] ?? '').trim() || undefined,
     synced: true,
   };
 }
 
-/** Overwrite the whole sheet with the given sessions (sorted by start time). */
-export async function pushBackup(
+function valuesUrl(spreadsheetId: string): string {
+  return `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${SHEET_TAB}`;
+}
+
+/** ID column (G) value of a row, trimmed. */
+function rowId(row: string[]): string {
+  return (row[6] ?? '').trim();
+}
+
+/**
+ * Append the given sessions as new rows owned by `name`. One write call, no
+ * full-sheet rewrite — the sheet is used like an append-only table. Callers
+ * must avoid re-appending sessions already present (see `fetchMyIds`).
+ */
+export async function appendRows(
   token: string,
   spreadsheetId: string,
   sessions: Session[],
+  name: string,
 ): Promise<void> {
-  const rows = [...sessions]
+  if (sessions.length === 0) return;
+  const me = name.trim();
+  const values = [...sessions]
     .sort((a, b) => a.startedAt - b.startedAt)
-    .map(sessionToRow);
-  const values = [HEADER, ...rows];
-  const base = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${SHEET_TAB}`;
-  // Clear stale rows first, then write from A1.
-  await api(token, `${base}!A:Z:clear`, { method: 'POST', body: '{}' });
+    .map((s) => sessionToRow(s, me));
   await api(
     token,
-    `${base}!A1?valueInputOption=RAW`,
-    { method: 'PUT', body: JSON.stringify({ values }) },
+    `${valuesUrl(spreadsheetId)}!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+    { method: 'POST', body: JSON.stringify({ values }) },
   );
 }
 
-/** Read all sessions back from the sheet. */
-export async function pullBackup(
+/** Numeric id (gid) of the SHEET_TAB tab — needed to delete rows. */
+export async function fetchSheetGid(
   token: string,
   spreadsheetId: string,
-): Promise<Session[]> {
-  const base = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${SHEET_TAB}`;
-  const data = await api(token, `${base}!A2:H100000`);
+): Promise<number> {
+  const data = await api(
+    token,
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets(properties(sheetId,title))`,
+  );
+  const sheets: { properties: { sheetId: number; title: string } }[] =
+    data.sheets ?? [];
+  const tab = sheets.find((s) => s.properties.title === SHEET_TAB);
+  if (!tab) throw new Error(`No se encontró la pestaña "${SHEET_TAB}".`);
+  return tab.properties.sheetId;
+}
+
+/** The set of session ids currently stored under `name` in the sheet. */
+export async function fetchMyIds(
+  token: string,
+  spreadsheetId: string,
+  name: string,
+): Promise<Set<string>> {
+  const me = name.trim();
+  const data = await api(token, `${valuesUrl(spreadsheetId)}!${RANGE}`);
   const rows: string[][] = data.values ?? [];
-  return rows.map(rowToSession).filter((s): s is Session => s != null);
+  return new Set(
+    rows.filter((r) => isDataRow(r) && rowName(r) === me).map(rowId).filter(Boolean),
+  );
+}
+
+/**
+ * Delete the rows owned by `name` whose id is in `ids`. Reads the sheet to map
+ * ids to absolute row positions, then removes them bottom-up in a single
+ * batchUpdate (descending order keeps earlier indices valid as rows shift).
+ */
+export async function deleteRowsByIds(
+  token: string,
+  spreadsheetId: string,
+  ids: string[],
+  name: string,
+  sheetGid: number,
+): Promise<void> {
+  const idSet = new Set(ids);
+  if (idSet.size === 0) return;
+  const me = name.trim();
+  const data = await api(token, `${valuesUrl(spreadsheetId)}!${RANGE}`);
+  const rows: string[][] = data.values ?? [];
+  // RANGE starts at sheet row 2, so array index i → 0-based dimension i + 1.
+  const targets: number[] = [];
+  rows.forEach((r, i) => {
+    if (rowName(r) === me && idSet.has(rowId(r))) targets.push(i + 1);
+  });
+  if (targets.length === 0) return;
+  const requests = targets
+    .sort((a, b) => b - a)
+    .map((idx) => ({
+      deleteDimension: {
+        range: { sheetId: sheetGid, dimension: 'ROWS', startIndex: idx, endIndex: idx + 1 },
+      },
+    }));
+  await api(
+    token,
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`,
+    { method: 'POST', body: JSON.stringify({ requests }) },
+  );
+}
+
+/** Read back only the sessions owned by `name` from the shared sheet. */
+export async function pullMine(
+  token: string,
+  spreadsheetId: string,
+  name: string,
+): Promise<Session[]> {
+  const me = name.trim();
+  const data = await api(token, `${valuesUrl(spreadsheetId)}!${RANGE}`);
+  const rows: string[][] = data.values ?? [];
+  return rows
+    .filter((r) => rowName(r) === me)
+    .map(rowToSession)
+    .filter((s): s is Session => s != null);
 }

@@ -9,6 +9,7 @@ export default function SyncScreen() {
   const sync = useSync();
   const { sessions } = useSessions();
   const [clientIdInput, setClientIdInput] = useState(sync.clientId);
+  const [nameInput, setNameInput] = useState(sync.name);
   const [msg, setMsg] = useState<string | null>(null);
 
   const busy = sync.status === 'working';
@@ -16,6 +17,11 @@ export default function SyncScreen() {
   const saveClientId = () => {
     sync.setClientId(clientIdInput);
     setMsg('Client ID guardado.');
+  };
+
+  const saveName = () => {
+    sync.setName(nameInput);
+    setMsg('Nombre guardado.');
   };
 
   const onConnect = async () => {
@@ -41,7 +47,7 @@ export default function SyncScreen() {
   const onRestore = async () => {
     if (
       !confirm(
-        'Restaurar reemplaza las sesiones de este dispositivo con las de la planilla. ¿Continuar?',
+        'Restaurar reemplaza las sesiones de este dispositivo con las TUYAS de la planilla (las que están a tu nombre). ¿Continuar?',
       )
     )
       return;
@@ -98,27 +104,64 @@ export default function SyncScreen() {
         )}
       </div>
 
-      {/* Step 1: Client ID */}
-      <label className="field-label">
-        Client ID de Google (OAuth) — paso único
-      </label>
+      {/* Step 1: your name (written into the shared sheet's Nombre column) */}
+      <label className="field-label">Tu nombre</label>
       <input
         className="input"
-        placeholder="xxxxxxxx.apps.googleusercontent.com"
-        value={clientIdInput}
-        onChange={(e) => setClientIdInput(e.target.value)}
-        autoCapitalize="off"
-        autoCorrect="off"
-        spellCheck={false}
+        placeholder="Ej. Facu"
+        value={nameInput}
+        onChange={(e) => setNameInput(e.target.value)}
       />
       <button
         className="btn btn-ghost"
         style={{ marginTop: 10 }}
-        onClick={saveClientId}
-        disabled={!clientIdInput.trim()}
+        onClick={saveName}
+        disabled={!nameInput.trim() || nameInput.trim() === sync.name}
       >
-        Guardar Client ID
+        Guardar nombre
       </button>
+
+      {/* Step 2: Client ID — hidden when provided by a build env var */}
+      {sync.clientIdLocked ? (
+        <p className="muted" style={{ marginTop: 18 }}>
+          Client ID de Google configurado por la app ✓
+        </p>
+      ) : (
+        <>
+          <label className="field-label" style={{ marginTop: 18 }}>
+            Client ID de Google (OAuth) — paso único
+          </label>
+          <input
+            className="input"
+            placeholder="xxxxxxxx.apps.googleusercontent.com"
+            value={clientIdInput}
+            onChange={(e) => setClientIdInput(e.target.value)}
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+          <button
+            className="btn btn-ghost"
+            style={{ marginTop: 10 }}
+            onClick={saveClientId}
+            disabled={!clientIdInput.trim()}
+          >
+            Guardar Client ID
+          </button>
+        </>
+      )}
+
+      {/* Bootstrap helper: surface the created sheet id to pin via env var */}
+      {sync.spreadsheetId && !sync.sheetIdLocked && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Planilla creada. Para que <b>todos los dispositivos</b> usen esta
+            misma planilla, pegá este ID en la variable{' '}
+            <code>VITE_BACKUP_SPREADSHEET_ID</code> y volvé a deployar:
+          </p>
+          <code style={{ wordBreak: 'break-all' }}>{sync.spreadsheetId}</code>
+        </div>
+      )}
 
       {/* Actions */}
       <div style={{ display: 'grid', gap: 10, marginTop: 22 }}>
@@ -184,7 +227,9 @@ export default function SyncScreen() {
           </li>
           <li>
             Copiá el <b>Client ID</b> (termina en{' '}
-            <code>.apps.googleusercontent.com</code>) y pegalo arriba.
+            <code>.apps.googleusercontent.com</code>) y ponelo en la variable{' '}
+            <code>VITE_GOOGLE_CLIENT_ID</code> (o pegalo arriba si no usás env
+            vars).
           </li>
         </ol>
       </details>

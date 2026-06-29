@@ -68,30 +68,59 @@ src/
     AddSessionScreen.tsx     Carga manual
 ```
 
-## Respaldo en Google Sheets
+## Respaldo en Google Sheets (planilla compartida multiusuario)
 
-La app respalda las sesiones en una planilla de tu Google Drive. localStorage es
-la copia de trabajo (offline); la planilla es el respaldo de seguridad. Cuando
-estás conectado, respalda **solo, en segundo plano, apenas guardás una sesión**.
-Si se borra el navegador, "Restaurar desde la planilla" recupera todo.
+La app usa **una única planilla compartida** de Google Drive como base de datos.
+localStorage es la copia de trabajo (offline); la planilla es el respaldo. Cada
+persona escribe **su nombre** (se guarda en `localStorage`) y sus sesiones van a
+una columna `Nombre`. Así varias personas comparten una planilla sin pisarse.
 
-Entrá a la pantalla **Respaldo** (botón ☁ arriba a la derecha) para conectarlo.
+La escritura es **incremental, fila por fila** (no reescribe la planilla):
 
-### Setup de Google Cloud (una sola vez, ~5 min)
+- **Crear sesión** (carga manual o parar el timer) → **agrega una fila** (append).
+- **Borrar sesión** → ubica esa fila por su `ID` y la elimina.
+- **Abrir la app sin cambios** → no escribe nada. Se lleva un registro local de
+  los IDs ya subidos para no duplicar; en un dispositivo nuevo reconcilia una vez
+  contra la planilla.
+- **Restaurar desde la planilla** → recupera **solo tus** sesiones (las que están
+  a tu nombre) en este dispositivo.
 
-1. En **console.cloud.google.com**, creá un proyecto.
-2. **APIs y servicios → Biblioteca**: habilitá **Google Sheets API**.
-3. **Pantalla de consentimiento OAuth**: tipo *Externo*; agregá tu email como
-   *usuario de prueba*.
-4. **Credenciales → Crear credenciales → ID de cliente OAuth → Aplicación web**.
-5. En *Orígenes de JavaScript autorizados* agregá la(s) URL(s) desde donde abrís
-   la app (ej. `http://localhost:5173` y tu URL de deploy).
-6. Copiá el **Client ID** y pegalo en la pantalla Respaldo → **Conectar Google**.
+### Modelo de cuentas: una sola cuenta de Google para todos
+
+Con el scope mínimo `drive.file` la app solo puede tocar la planilla que **ella
+misma creó con esa cuenta**. Por eso todos los dispositivos se loguean con **la
+misma cuenta de Google** (la dueña de la planilla) — una vez por dispositivo; el
+token se renueva solo en segundo plano. El login de Google autoriza a una cuenta
+en *ese* dispositivo: no hay forma, sin backend, de que un login cubra a otros.
+
+### Configuración (env vars, una sola vez)
+
+El Client ID y el ID de la planilla se fijan por variables de entorno de build
+(ver `.env.example`), así no hay que configurarlos en cada dispositivo:
+
+```
+VITE_GOOGLE_CLIENT_ID=...apps.googleusercontent.com
+VITE_BACKUP_SPREADSHEET_ID=<id de la planilla>
+```
+
+Pasos:
+
+1. **Google Cloud** (una vez, ~5 min): en **console.cloud.google.com** creá un
+   proyecto; **APIs y servicios → Biblioteca** habilitá **Google Sheets API**;
+   **Pantalla de consentimiento OAuth** tipo *Externo* con la cuenta compartida
+   como *usuario de prueba*; **Credenciales → ID de cliente OAuth → Aplicación
+   web**, agregando en *Orígenes de JavaScript* tus URLs (`http://localhost:5173`
+   y la de deploy). Copiá el **Client ID** → `VITE_GOOGLE_CLIENT_ID`.
+2. **Bootstrap de la planilla** (una vez): dejá `VITE_BACKUP_SPREADSHEET_ID`
+   vacío, abrí la app con la cuenta compartida, poné tu nombre y tocá *Conectar*.
+   La app crea la planilla y te muestra su **ID** en la pantalla Respaldo.
+   Pegalo en `VITE_BACKUP_SPREADSHEET_ID` y volvé a deployar. Listo: queda fija.
 
 Notas:
-- Es una app web (sin servidor), así que el respaldo automático corre mientras
-  la app está abierta. No perdés datos: apenas la abrís, respalda lo pendiente.
-- Scope mínimo `drive.file`: la app solo accede a la planilla que ella crea, no
-  al resto de tu Drive.
-- El Client ID no es secreto (es público en apps client-side); se guarda en
-  `localStorage`, no en el código.
+- Es una app web (sin servidor), así que el respaldo automático corre mientras la
+  app está abierta. Apenas la abrís, sube lo pendiente (solo lo nuevo/borrado).
+- Como cada operación toca solo su propia fila, dos personas pueden escribir a la
+  vez sin pisarse. Solo queda una ventana de carrera mínima al borrar (se leen las
+  filas y luego se elimina por índice); para un grupo chico es despreciable.
+- Ni el Client ID ni el ID de la planilla son secretos. Si no usás env vars, la
+  pantalla Respaldo sigue dejando pegar el Client ID a mano (fallback).
