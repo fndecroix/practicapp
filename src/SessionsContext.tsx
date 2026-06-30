@@ -21,6 +21,7 @@ type SessionsContextValue = {
   updateSession: (id: string, patch: Partial<Session>) => void;
   deleteSession: (id: string) => void;
   replaceAll: (sessions: Session[]) => void;
+  reconcile: (remote: Session[], pushedIds: string[]) => void;
   sessionsByDay: (dayKey: string) => Session[];
   totalForDay: (dayKey: string) => number;
   daysWithSessions: Set<string>;
@@ -61,6 +62,32 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
   // Replace the whole dataset (used when restoring from a backup).
   const replaceAll = useCallback((next: Session[]) => {
     setSessions(next);
+  }, []);
+
+  /**
+   * Merge the live remote sessions into local for two-way sync. We keep every
+   * remote row, plus any local session that isn't on the server yet (not in
+   * `pushedIds`) — those are pending uploads. Local sessions that we had pushed
+   * but are gone from remote were deleted on another device, so we drop them.
+   * Runs as a functional update so concurrent local edits aren't lost.
+   */
+  const reconcile = useCallback((remote: Session[], pushedIds: string[]) => {
+    const remoteById = new Map(remote.map((s) => [s.id, s]));
+    const pushedSet = new Set(pushedIds);
+    setSessions((prev) => {
+      const result = remote.slice();
+      for (const s of prev) {
+        if (remoteById.has(s.id)) continue; // already taken from remote
+        if (pushedSet.has(s.id)) continue; // pushed before, gone now → deleted elsewhere
+        result.push(s); // local-only, not uploaded yet → keep
+      }
+      // No change? keep the same array to avoid a needless re-render / save.
+      if (result.length === prev.length) {
+        const prevIds = new Set(prev.map((s) => s.id));
+        if (result.every((s) => prevIds.has(s.id))) return prev;
+      }
+      return result;
+    });
   }, []);
 
   const sessionsByDay = useCallback(
@@ -105,6 +132,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
       updateSession,
       deleteSession,
       replaceAll,
+      reconcile,
       sessionsByDay,
       totalForDay,
       daysWithSessions,
@@ -116,6 +144,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
       updateSession,
       deleteSession,
       replaceAll,
+      reconcile,
       sessionsByDay,
       totalForDay,
       daysWithSessions,

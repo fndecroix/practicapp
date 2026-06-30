@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -22,8 +23,8 @@ type SyncConfig = {
   name: string;
   /**
    * Session ids this device has pushed. Drives the incremental sync: append ids
-   * not here, soft-delete ids here but gone locally. null = never synced (cold
-   * start): we never delete on a cold start, and the backend dedupes appends.
+   * not here, soft-delete ids here but gone locally, and tell new vs.
+   * deleted-elsewhere apart when reconciling a pull.
    */
   pushedIds: string[] | null;
   lastBackupAt: number | null;
@@ -71,9 +72,10 @@ type SyncContextValue = {
 const SyncContext = createContext<SyncContextValue | null>(null);
 
 export function SyncProvider({ children }: { children: ReactNode }) {
-  const { sessions, replaceAll } = useSessions();
+  const { sessions, reconcile } = useSessions();
   const [config, setConfig] = useState<SyncConfig>(() => loadConfig());
   const [working, setWorking] = useState(false);
+  const didInitialSync = useRef(false);
 
   const persist = useCallback((c: SyncConfig) => {
     setConfig(c);
@@ -86,33 +88,36 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const ready = ENV_READY && hasName;
 
   /**
-   * Incremental sync to the backend: append newly-created sessions and soft-delete
-   * removed ones. Opening the app with nothing pending makes no call. On a cold
-   * start we never delete (only the persisted pushedIds drive deletes) and the
-   * backend dedupes appends, so logging in on a new device can't wipe anything.
+   * Upload pending local changes only (no read): append new sessions and
+   * soft-delete removed ones. This is the ongoing "backup" while you use the app
+   * — it never pulls, so it won't bring in other devices' changes.
    */
-  const doBackup = useCallback(async () => {
+  const pushChanges = useCallback(async () => {
     const cfg = loadConfig();
     const name = cfg.name.trim();
     if (!ENDPOINT || !name) return;
 
     const localIds = sessions.map((s) => s.id);
-    if (cfg.pushedIds && cfg.lastBackupSig === signature(sessions)) return;
+    const pushed = cfg.pushedIds ?? [];
+    const pushedSet = new Set(pushed);
+    const localSet = new Set(localIds);
+    const toAdd = sessions.filter((s) => !pushedSet.has(s.id));
+    const toDelete = pushed.filter((id) => !localSet.has(id));
+
+    if (toAdd.length === 0 && toDelete.length === 0) {
+      // Nothing to upload: just mark in-sync so we stop being "dirty".
+      if (cfg.lastBackupSig !== signature(sessions)) {
+        persist({ ...cfg, pushedIds: localIds, lastBackupSig: signature(sessions) });
+      }
+      return;
+    }
 
     setWorking(true);
     try {
-      const pushed = cfg.pushedIds ?? [];
-      const pushedSet = new Set(pushed);
-      const localSet = new Set(localIds);
-
-      const toAdd = sessions.filter((s) => !pushedSet.has(s.id));
-      const toDelete = pushed.filter((id) => !localSet.has(id));
-
       if (toAdd.length) await appendSessions(ENDPOINT, name, toAdd);
       if (toDelete.length) await deleteSessions(ENDPOINT, name, toDelete);
-
       persist({
-        ...cfg,
+        ...loadConfig(),
         pushedIds: localIds,
         lastBackupAt: Date.now(),
         lastBackupSig: signature(sessions),
@@ -122,57 +127,85 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     }
   }, [sessions, persist]);
 
-  /** Pull this user's sessions from the backend into local storage. */
-  const restore = useCallback(async () => {
+  /**
+   * Full two-way sync: push pending changes, then pull the sheet and merge other
+   * devices' changes back in. Runs once when the page loads (and on sign-in), so
+   * a refresh is what brings down what changed elsewhere.
+   */
+  const fullSync = useCallback(async () => {
     const cfg = loadConfig();
     const name = cfg.name.trim();
     if (!ENDPOINT || !name) return;
-    const restored = await listSessions(ENDPOINT, name);
-    replaceAll(restored);
-    // Already on the server: seed pushedIds so we don't re-append.
-    persist({
-      ...loadConfig(),
-      pushedIds: restored.map((s) => s.id),
-      lastBackupSig: signature(restored),
-      lastBackupAt: Date.now(),
-    });
-  }, [replaceAll, persist]);
+
+    const snapshot = sessions;
+    const localIds = snapshot.map((s) => s.id);
+    const pushed = cfg.pushedIds ?? [];
+    const pushedSet = new Set(pushed);
+    const localSet = new Set(localIds);
+    const toAdd = snapshot.filter((s) => !pushedSet.has(s.id));
+    const toDelete = pushed.filter((id) => !localSet.has(id));
+
+    setWorking(true);
+    try {
+      if (toAdd.length) await appendSessions(ENDPOINT, name, toAdd);
+      if (toDelete.length) await deleteSessions(ENDPOINT, name, toDelete);
+
+      const remote = await listSessions(ENDPOINT, name);
+      reconcile(remote, pushed);
+
+      persist({
+        ...loadConfig(),
+        pushedIds: remote.map((s) => s.id),
+        lastBackupAt: Date.now(),
+        lastBackupSig: signature(remote),
+      });
+    } finally {
+      setWorking(false);
+    }
+  }, [sessions, reconcile, persist]);
 
   /**
    * Gate "login": store the name (no Google login — the backend handles access)
-   * and, on a fresh device, pull existing history for that name. Pushing of any
-   * local-only sessions is left to the auto-sync effect once the gate closes.
+   * and do a full sync to pull existing history for that name.
    */
   const signIn = useCallback(
     async (rawName: string) => {
       const name = rawName.trim();
       if (!name) return;
-      // Persist the name now so restore can read it; keep the gate up (no
-      // setConfig) until we're done so it can show a spinner.
+      // Persist the name now so sync can read it; keep the gate up (no setConfig)
+      // until we're done so it can show a spinner.
       saveConfig({ ...loadConfig(), name });
-      setWorking(true);
       try {
-        if (ENV_READY && sessions.length === 0) await restore();
+        if (ENV_READY) {
+          didInitialSync.current = true; // this counts as the page-load sync
+          await fullSync();
+        }
       } catch (e) {
         // Offline-first: a backend hiccup shouldn't block entering the app.
-        console.warn('No se pudo traer el historial:', e);
+        console.warn('No se pudo sincronizar al entrar:', e);
       } finally {
-        setWorking(false);
         setConfig(loadConfig()); // flip the gate: name is now in React state
       }
     },
-    [sessions.length, restore],
+    [fullSync],
   );
 
-  // Automatic background sync: when ready and there are unsynced changes, push
-  // shortly after they happen. Failures are silent (data stays safe locally).
+  // One full sync per page load (pulls other devices' changes). A refresh
+  // re-mounts this and runs it again; there is no polling in between.
+  useEffect(() => {
+    if (!ready || didInitialSync.current) return;
+    didInitialSync.current = true;
+    fullSync().catch((e) => console.warn('Sync inicial falló:', e));
+  }, [ready, fullSync]);
+
+  // Push local changes (only) promptly after they happen — the ongoing backup.
   useEffect(() => {
     if (!ready || !dirty || working) return;
     const t = setTimeout(() => {
-      doBackup().catch((e) => console.warn('Sync falló:', e));
-    }, 3000);
+      pushChanges().catch((e) => console.warn('Backup falló:', e));
+    }, 2000);
     return () => clearTimeout(t);
-  }, [ready, dirty, working, doBackup]);
+  }, [ready, dirty, working, pushChanges]);
 
   const value = useMemo(() => ({ hasName, signIn }), [hasName, signIn]);
 
