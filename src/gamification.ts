@@ -128,37 +128,6 @@ export function dailyProgress(
   return { minutes, goal, ratio: Math.min(minutes / goal, 1) };
 }
 
-// ---- Heatmap ----
-
-export type HeatLevel = 0 | 1 | 2 | 3 | 4;
-export type HeatCell = { key: string; minutes: number; level: HeatLevel; future: boolean };
-
-function levelFor(min: number): HeatLevel {
-  if (min <= 0) return 0;
-  if (min < 15) return 1;
-  if (min < 30) return 2;
-  if (min < 60) return 3;
-  return 4;
-}
-
-/** Columns = weeks (oldest first), rows = Mon..Sun. Last column is this week. */
-export function heatmap(sessions: Session[], weeks = 16): HeatCell[][] {
-  const mins = minutesByDay(sessions);
-  const today = toDayKey();
-  const firstMonday = addDays(startOfWeekKey(), -(weeks - 1) * 7);
-  const cols: HeatCell[][] = [];
-  for (let w = 0; w < weeks; w++) {
-    const col: HeatCell[] = [];
-    for (let d = 0; d < 7; d++) {
-      const key = addDays(firstMonday, w * 7 + d);
-      const minutes = mins.get(key) ?? 0;
-      col.push({ key, minutes, level: levelFor(minutes), future: key > today });
-    }
-    cols.push(col);
-  }
-  return cols;
-}
-
 // ---- Achievements ----
 
 export type Achievement = {

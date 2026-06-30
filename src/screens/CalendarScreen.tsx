@@ -4,16 +4,16 @@ import { useSessions } from '../SessionsContext';
 import { formatDuration, toDayKey } from '../format';
 import { MonthCalendar } from '../components/MonthCalendar';
 import { GoalRing } from '../components/GoalRing';
-import { Heatmap } from '../components/Heatmap';
-import { computeStreak, dailyProgress, loadGoals } from '../gamification';
+import { computeStreak, dailyProgress, loadGoals, minutesByDay } from '../gamification';
 
 export default function CalendarScreen() {
   const navigate = useNavigate();
-  const { totals, daysWithSessions, sessions } = useSessions();
+  const { totals, sessions } = useSessions();
 
   const goals = loadGoals();
   const streak = computeStreak(sessions, goals);
   const progress = dailyProgress(sessions, goals);
+  const minsByDay = minutesByDay(sessions);
 
   const now = new Date();
   const [view, setView] = useState({ year: now.getFullYear(), month: now.getMonth() });
@@ -64,8 +64,6 @@ export default function CalendarScreen() {
         </div>
       </div>
 
-      <Heatmap sessions={sessions} />
-
       <div className="stats">
         <div className="stat-card">
           <div className="stat-value">{formatDuration(totals.today)}</div>
@@ -84,7 +82,8 @@ export default function CalendarScreen() {
       <MonthCalendar
         year={view.year}
         month={view.month}
-        daysWithSessions={daysWithSessions}
+        minutesByDay={minsByDay}
+        thresholdMin={goals.thresholdMin}
         onPrev={prev}
         onNext={next}
         onSelectDay={(dayKey) => navigate(`/day/${dayKey}`)}

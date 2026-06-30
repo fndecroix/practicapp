@@ -222,10 +222,10 @@ textarea.input {
   background: var(--surface-alt);
 }
 
-.cal-grid {
+.cal-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
+  margin-bottom: 4px;
 }
 
 .cal-weekday {
@@ -235,40 +235,85 @@ textarea.input {
   padding-bottom: 6px;
 }
 
-.cal-cell {
-  aspect-ratio: 1;
+.cal-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  row-gap: 8px;
+}
+
+.cal-cell2 {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 3px;
-  border-radius: 12px;
+  gap: 4px;
+  padding: 2px 0;
+  background: none;
   color: var(--text);
-  font-size: 15px;
 }
 
-.cal-cell.empty {
+.cal-cell2.empty {
   visibility: hidden;
 }
 
-.cal-cell.today {
-  background: var(--surface-alt);
-  outline: 1.5px solid var(--primary);
-}
-
-.cal-num {
+.cal-date2 {
+  font-size: 10px;
   line-height: 1;
+  color: var(--text-muted);
 }
 
-.cal-dot {
-  width: 6px;
-  height: 6px;
+.cal-cell2.today .cal-date2 {
+  color: var(--primary);
+  font-weight: 800;
+}
+
+.cal-orb-row {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.cal-orb {
+  position: relative;
+  z-index: 1;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
-  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--surface-alt);
+  color: var(--text-muted);
 }
 
-.cal-dot.on {
-  background: var(--accent);
+.cal-orb.has {
+  color: var(--text);
+}
+
+.cal-orb.hot {
+  background: linear-gradient(150deg, #f7b955, #f0852e);
+  color: #3a230a;
+  box-shadow: 0 2px 10px rgba(240, 133, 46, 0.4);
+}
+
+.cal-cell2.today .cal-orb {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+/* Connector between consecutive "hot" days (drawn behind the orbs). */
+.cal-link {
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 6px;
+  transform: translateY(-50%);
+  background: linear-gradient(90deg, #f7b955, #f0852e);
 }
 
 .cal-hint {
@@ -587,41 +632,6 @@ textarea.input {
 }
 .streak-hint.ok {
   color: var(--success);
-}
-
-/* Heatmap */
-.heatmap {
-  display: flex;
-  gap: 3px;
-  justify-content: center;
-  margin-bottom: 16px;
-  overflow-x: auto;
-}
-.heat-col {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.heat-cell {
-  width: 13px;
-  height: 13px;
-  border-radius: 3px;
-  background: var(--surface-alt);
-}
-.heat-cell.lvl1 {
-  background: #3a2f6b;
-}
-.heat-cell.lvl2 {
-  background: #5a44b0;
-}
-.heat-cell.lvl3 {
-  background: #8163e8;
-}
-.heat-cell.lvl4 {
-  background: var(--primary);
-}
-.heat-cell.future {
-  opacity: 0.25;
 }
 
 /* Goal setter (Logros) */
