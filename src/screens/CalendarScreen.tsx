@@ -3,10 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { useSessions } from '../SessionsContext';
 import { formatDuration, toDayKey } from '../format';
 import { MonthCalendar } from '../components/MonthCalendar';
+import { GoalRing } from '../components/GoalRing';
+import { Heatmap } from '../components/Heatmap';
+import { computeStreak, dailyProgress, loadGoals } from '../gamification';
 
 export default function CalendarScreen() {
   const navigate = useNavigate();
-  const { totals, daysWithSessions } = useSessions();
+  const { totals, daysWithSessions, sessions } = useSessions();
+
+  const goals = loadGoals();
+  const streak = computeStreak(sessions, goals);
+  const progress = dailyProgress(sessions, goals);
 
   const now = new Date();
   const [view, setView] = useState({ year: now.getFullYear(), month: now.getMonth() });
@@ -24,7 +31,40 @@ export default function CalendarScreen() {
     <div className="screen">
       <div className="topbar">
         <h1>🎻 Mi práctica</h1>
+        <button
+          className="back-btn"
+          style={{ marginLeft: 'auto' }}
+          onClick={() => navigate('/logros')}
+          aria-label="Logros"
+          title="Logros"
+        >
+          🏆
+        </button>
       </div>
+
+      <div className="hero">
+        <GoalRing
+          ratio={progress.ratio}
+          label={`${Math.round(progress.minutes)}m`}
+          sub={`/ ${progress.goal}m`}
+        />
+        <div className="hero-streak">
+          <div className="streak-num">🔥 {streak.current}</div>
+          <div className="streak-label">
+            {streak.current === 1 ? 'día' : 'días'} de racha
+            {streak.longest > streak.current ? ` · récord ${streak.longest}` : ''}
+          </div>
+          {streak.atRisk ? (
+            <div className="streak-hint risk">¡Practicá hoy para no perder la racha!</div>
+          ) : streak.todayDone ? (
+            <div className="streak-hint ok">¡Hoy cumplido! 🎉</div>
+          ) : (
+            <div className="streak-hint">Empezá tu racha hoy.</div>
+          )}
+        </div>
+      </div>
+
+      <Heatmap sessions={sessions} />
 
       <div className="stats">
         <div className="stat-card">

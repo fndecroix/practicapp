@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useSessions } from '../SessionsContext';
+import { useCelebration } from '../components/Celebration';
 import { formatDayLabel, fromDayKey, toDayKey } from '../format';
 
 const QUICK_MINUTES = [15, 30, 45, 60, 90];
@@ -9,6 +10,7 @@ export default function AddSessionScreen() {
   const { dayKey = toDayKey() } = useParams();
   const navigate = useNavigate();
   const { addSession } = useSessions();
+  const { celebrate } = useCelebration();
 
   const [hours, setHours] = useState('0');
   const [minutes, setMinutes] = useState('30');
@@ -31,7 +33,7 @@ export default function AddSessionScreen() {
     // Anchor at noon so the local calendar day stays stable.
     const anchor = fromDayKey(dayKey);
     anchor.setHours(12, 0, 0, 0);
-    addSession({
+    const saved = addSession({
       date: dayKey,
       startedAt: anchor.getTime(),
       durationSec,
@@ -39,6 +41,7 @@ export default function AddSessionScreen() {
       notes: notes.trim() || undefined,
     });
     navigate(`/day/${dayKey}`);
+    celebrate(saved);
   };
 
   return (

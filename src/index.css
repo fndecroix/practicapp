@@ -530,3 +530,252 @@ textarea.input {
 .help b {
   color: var(--text);
 }
+
+/* ---- Gamification ---- */
+.hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.ring-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+.ring-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.1;
+}
+.ring-label strong {
+  font-size: 20px;
+  font-weight: 800;
+}
+.ring-label span {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.hero-streak {
+  min-width: 0;
+}
+.streak-num {
+  font-size: 30px;
+  font-weight: 800;
+}
+.streak-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.streak-hint {
+  font-size: 12px;
+  margin-top: 8px;
+  font-weight: 600;
+}
+.streak-hint.risk {
+  color: var(--accent);
+}
+.streak-hint.ok {
+  color: var(--success);
+}
+
+/* Heatmap */
+.heatmap {
+  display: flex;
+  gap: 3px;
+  justify-content: center;
+  margin-bottom: 16px;
+  overflow-x: auto;
+}
+.heat-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.heat-cell {
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  background: var(--surface-alt);
+}
+.heat-cell.lvl1 {
+  background: #3a2f6b;
+}
+.heat-cell.lvl2 {
+  background: #5a44b0;
+}
+.heat-cell.lvl3 {
+  background: #8163e8;
+}
+.heat-cell.lvl4 {
+  background: var(--primary);
+}
+.heat-cell.future {
+  opacity: 0.25;
+}
+
+/* Goal setter (Logros) */
+.goal-setter {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+.goal-value {
+  font-size: 18px;
+  font-weight: 800;
+  min-width: 90px;
+  text-align: center;
+}
+
+/* Badges */
+.badge-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 14px;
+}
+.badge {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 12px;
+  text-align: center;
+}
+.badge.locked {
+  opacity: 0.45;
+  filter: grayscale(0.8);
+}
+.badge.earned {
+  border-color: var(--primary);
+}
+.badge-emoji {
+  font-size: 30px;
+}
+.badge-title {
+  font-weight: 700;
+  font-size: 14px;
+  margin-top: 6px;
+}
+.badge-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Celebration modal */
+.celebrate-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(8, 6, 14, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: hidden;
+}
+.celebrate-card {
+  position: relative;
+  width: 100%;
+  max-width: 340px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 24px 20px;
+  text-align: center;
+  animation: pop 0.3s ease;
+}
+@keyframes pop {
+  from {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+}
+.celebrate-emoji {
+  font-size: 48px;
+}
+.celebrate-card h2 {
+  margin: 6px 0 2px;
+  font-size: 22px;
+}
+.celebrate-mins {
+  margin: 0 0 14px;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--primary);
+}
+.celebrate-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+}
+.celebrate-row span {
+  color: var(--text-muted);
+}
+.celebrate-badges {
+  margin-top: 12px;
+  text-align: left;
+}
+.celebrate-badges-title {
+  font-weight: 800;
+  color: var(--accent);
+  margin-bottom: 8px;
+  text-align: center;
+}
+.celebrate-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface-alt);
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+.celebrate-badge-emoji {
+  font-size: 28px;
+}
+.celebrate-card .btn {
+  margin-top: 16px;
+}
+
+/* Confetti */
+.confetti {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.confetti span {
+  position: absolute;
+  top: -12px;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  animation-name: fall;
+  animation-timing-function: linear;
+  animation-iteration-count: 1;
+}
+@keyframes fall {
+  from {
+    transform: translateY(-12px) rotate(0deg);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(102vh) rotate(540deg);
+    opacity: 0.9;
+  }
+}

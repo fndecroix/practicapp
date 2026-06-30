@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useSessions } from '../SessionsContext';
+import { useCelebration } from '../components/Celebration';
 import { formatClock, toDayKey } from '../format';
 
 export default function TimerScreen() {
   const { dayKey = toDayKey() } = useParams();
   const navigate = useNavigate();
   const { addSession } = useSessions();
+  const { celebrate } = useCelebration();
 
   const [accumulated, setAccumulated] = useState(0); // whole+frac seconds banked
   const [runningSince, setRunningSince] = useState<number | null>(null);
@@ -51,7 +53,7 @@ export default function TimerScreen() {
       alert('Iniciá el timer antes de guardar.');
       return;
     }
-    addSession({
+    const saved = addSession({
       date: dayKey,
       startedAt: startedAtRef.current ?? Date.now(),
       durationSec,
@@ -59,6 +61,7 @@ export default function TimerScreen() {
       notes: notes.trim() || undefined,
     });
     navigate(`/day/${dayKey}`);
+    celebrate(saved);
   };
 
   const discard = () => {
