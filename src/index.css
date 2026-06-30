@@ -492,45 +492,6 @@ textarea.input {
   line-height: 1;
 }
 
-/* ---- Reconnect banner ---- */
-.reconnect-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 12px 16px 0;
-  padding: 10px 12px 10px 14px;
-  font-size: 13px;
-  background: rgba(240, 163, 94, 0.12);
-  border: 1px solid var(--accent);
-  border-radius: 12px;
-  color: var(--text);
-}
-
-.reconnect-banner .btn {
-  flex: 0 0 auto;
-  width: auto;
-  padding: 8px 14px;
-}
-
-.pin-banner {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 12px 16px 0;
-  padding: 12px 14px;
-  font-size: 13px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  color: var(--text-muted);
-}
-
-.pin-id {
-  word-break: break-all;
-  color: var(--text);
-  font-size: 13px;
-}
 
 .danger-text {
   color: var(--danger);

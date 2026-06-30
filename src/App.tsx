@@ -4,8 +4,6 @@ import DayScreen from './screens/DayScreen';
 import TimerScreen from './screens/TimerScreen';
 import AddSessionScreen from './screens/AddSessionScreen';
 import NameGate from './screens/NameGate';
-import { ReconnectBanner } from './components/ReconnectBanner';
-import { PinSheetBanner } from './components/PinSheetBanner';
 import { useSync } from './SyncContext';
 
 export default function App() {
@@ -16,8 +14,6 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <ReconnectBanner />
-      <PinSheetBanner />
       <Routes>
         <Route path="/" element={<CalendarScreen />} />
         <Route path="/day/:dayKey" element={<DayScreen />} />
