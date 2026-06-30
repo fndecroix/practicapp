@@ -913,13 +913,19 @@ textarea.input {
   animation-timing-function: linear;
   animation-iteration-count: 1;
 }
+.confetti span.bit {
+  top: -12px;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
 @keyframes fall {
   from {
-    transform: translateY(-12px) rotate(0deg);
+    transform: translateY(0);
     opacity: 1;
   }
   to {
-    transform: translateY(102vh) rotate(540deg);
+    transform: translateY(102vh);
     opacity: 0.9;
   }
 }

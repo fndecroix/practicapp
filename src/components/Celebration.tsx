@@ -47,7 +47,7 @@ export function useCelebration(): CelebrationValue {
   return ctx;
 }
 
-const DOGS = ['🐶', '🐕', '🐩', '🐾', '🦴', '🦮'];
+const CONFETTI = ['#a78bfa', '#f0a35e', '#5ed6a0', '#f26d6d', '#7c5cfc'];
 
 function CelebrationModal({
   session,
@@ -83,19 +83,25 @@ function CelebrationModal({
   return (
     <div className="celebrate-overlay" onClick={onClose}>
       <div className="confetti" aria-hidden>
-        {Array.from({ length: 18 }).map((_, i) => (
-          <span
-            key={i}
-            style={{
-              left: `${Math.random() * 100}%`,
-              fontSize: `${18 + Math.random() * 16}px`,
-              animationDelay: `${Math.random() * 0.6}s`,
-              animationDuration: `${1.8 + Math.random() * 1.4}s`,
-            }}
-          >
-            {DOGS[i % DOGS.length]}
-          </span>
-        ))}
+        {Array.from({ length: 22 }).map((_, i) => {
+          const common = {
+            left: `${Math.random() * 100}%`,
+            animationDelay: `${Math.random() * 0.6}s`,
+            animationDuration: `${1.8 + Math.random() * 1.4}s`,
+          };
+          // Mostly dog faces, with some confetti bits mixed in.
+          return i % 3 === 0 ? (
+            <span
+              key={i}
+              className="bit"
+              style={{ ...common, background: CONFETTI[i % CONFETTI.length] }}
+            />
+          ) : (
+            <span key={i} style={{ ...common, fontSize: `${20 + Math.random() * 14}px` }}>
+              🐶
+            </span>
+          );
+        })}
       </div>
 
       <div className="celebrate-card" onClick={(e) => e.stopPropagation()}>
