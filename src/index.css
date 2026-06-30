@@ -907,10 +907,8 @@ textarea.input {
 }
 .confetti span {
   position: absolute;
-  top: -12px;
-  width: 9px;
-  height: 9px;
-  border-radius: 2px;
+  top: -32px;
+  line-height: 1;
   animation-name: fall;
   animation-timing-function: linear;
   animation-iteration-count: 1;

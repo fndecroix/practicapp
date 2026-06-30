@@ -47,7 +47,7 @@ export function useCelebration(): CelebrationValue {
   return ctx;
 }
 
-const CONFETTI = ['#a78bfa', '#f0a35e', '#5ed6a0', '#f26d6d', '#7c5cfc'];
+const DOGS = ['🐶', '🐕', '🐩', '🐾', '🦴', '🦮'];
 
 function CelebrationModal({
   session,
@@ -83,16 +83,18 @@ function CelebrationModal({
   return (
     <div className="celebrate-overlay" onClick={onClose}>
       <div className="confetti" aria-hidden>
-        {Array.from({ length: 28 }).map((_, i) => (
+        {Array.from({ length: 18 }).map((_, i) => (
           <span
             key={i}
             style={{
               left: `${Math.random() * 100}%`,
-              background: CONFETTI[i % CONFETTI.length],
-              animationDelay: `${Math.random() * 0.5}s`,
-              animationDuration: `${1.6 + Math.random() * 1.2}s`,
+              fontSize: `${18 + Math.random() * 16}px`,
+              animationDelay: `${Math.random() * 0.6}s`,
+              animationDuration: `${1.8 + Math.random() * 1.4}s`,
             }}
-          />
+          >
+            {DOGS[i % DOGS.length]}
+          </span>
         ))}
       </div>
 
