@@ -172,6 +172,60 @@ export function achievements(sessions: Session[], goals: GoalSettings): Achievem
   ];
 }
 
+// ---- Levels (by cumulative practiced hours) ----
+
+export type Level = {
+  name: string;
+  emoji: string;
+  color: string;
+  minHours: number;
+};
+
+export const LEVELS: Level[] = [
+  { name: 'Bronce', emoji: '🥉', color: '#cd7f32', minHours: 0 },
+  { name: 'Plata', emoji: '🥈', color: '#c4cad6', minHours: 5 },
+  { name: 'Oro', emoji: '🥇', color: '#f5c542', minHours: 15 },
+  { name: 'Ámbar', emoji: '🔶', color: '#f0852e', minHours: 30 },
+  { name: 'Esmeralda', emoji: '💚', color: '#2ecc71', minHours: 60 },
+  { name: 'Zafiro', emoji: '🔵', color: '#3b82f6', minHours: 100 },
+  { name: 'Índigo', emoji: '🟣', color: '#7c5cfc', minHours: 175 },
+  { name: 'Rubí', emoji: '🔴', color: '#e0245e', minHours: 300 },
+  { name: 'Maestro', emoji: '👑', color: '#ffd86b', minHours: 500 },
+];
+
+export type LevelInfo = {
+  index: number;
+  current: Level;
+  next: Level | null;
+  hours: number;
+  ratio: number; // 0..1 toward next level
+};
+
+export function levelInfo(sessions: Session[]): LevelInfo {
+  const hours = sessions.reduce((a, s) => a + s.durationSec, 0) / 3600;
+  let index = 0;
+  for (let i = 0; i < LEVELS.length; i++) {
+    if (hours >= LEVELS[i].minHours) index = i;
+  }
+  const current = LEVELS[index];
+  const next = LEVELS[index + 1] ?? null;
+  const ratio = next
+    ? Math.min((hours - current.minHours) / (next.minHours - current.minHours), 1)
+    : 1;
+  return { index, current, next, hours, ratio };
+}
+
+const SEEN_LEVEL_KEY = 'practicapp:level-seen:v1';
+
+export function loadSeenLevel(): number {
+  const v = Number(localStorage.getItem(SEEN_LEVEL_KEY));
+  return Number.isFinite(v) ? v : 0;
+}
+
+export function saveSeenLevel(index: number) {
+  localStorage.setItem(SEEN_LEVEL_KEY, String(index));
+}
+
 // ---- "Newly unlocked" tracking (for the celebration) ----
 
 const SEEN_KEY = 'practicapp:badges-seen:v1';

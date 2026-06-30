@@ -4,6 +4,7 @@ import { useSessions } from '../SessionsContext';
 import { formatDuration, toDayKey } from '../format';
 import { MonthCalendar } from '../components/MonthCalendar';
 import { GoalRing } from '../components/GoalRing';
+import { LevelBar } from '../components/Level';
 import { computeStreak, dailyProgress, loadGoals, minutesByDay } from '../gamification';
 
 export default function CalendarScreen() {
@@ -63,6 +64,8 @@ export default function CalendarScreen() {
           )}
         </div>
       </div>
+
+      <LevelBar sessions={sessions} onClick={() => navigate('/logros')} />
 
       <div className="stats">
         <div className="stat-card">

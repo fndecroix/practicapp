@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSessions } from '../SessionsContext';
+import { LevelCard } from '../components/Level';
 import {
   achievements,
   computeStreak,
+  levelInfo,
   loadGoals,
   saveGoals,
   saveSeenBadges,
+  saveSeenLevel,
 } from '../gamification';
 
 export default function AchievementsScreen() {
@@ -18,9 +21,10 @@ export default function AchievementsScreen() {
   const badges = achievements(sessions, goals);
   const earned = badges.filter((b) => b.earned).length;
 
-  // Opening this screen clears the "new badge" state.
+  // Opening this screen clears the "new badge" and "level up" state.
   useEffect(() => {
     saveSeenBadges(badges.filter((b) => b.earned).map((b) => b.id));
+    saveSeenLevel(levelInfo(sessions).index);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -39,7 +43,9 @@ export default function AchievementsScreen() {
         <h1>Logros</h1>
       </div>
 
-      <div className="stats">
+      <LevelCard sessions={sessions} />
+
+      <div className="stats" style={{ marginTop: 16 }}>
         <div className="stat-card">
           <div className="stat-value">🔥 {streak.current}</div>
           <div className="stat-label">Racha actual</div>

@@ -13,9 +13,12 @@ import {
   achievements,
   computeStreak,
   dailyProgress,
+  levelInfo,
   loadGoals,
   loadSeenBadges,
+  loadSeenLevel,
   saveSeenBadges,
+  saveSeenLevel,
 } from '../gamification';
 
 type CelebrationValue = { celebrate: (session: Session) => void };
@@ -64,8 +67,14 @@ function CelebrationModal({
   // New badges = earned now but not seen before. Mark all as seen on mount.
   const seen = new Set(loadSeenBadges());
   const fresh = earnedNow.filter((a) => !seen.has(a.id));
+
+  // Level up = current level index higher than last seen.
+  const level = levelInfo(sessions);
+  const leveledUp = level.index > loadSeenLevel();
+
   useEffect(() => {
     saveSeenBadges(earnedNow.map((a) => a.id));
+    saveSeenLevel(level.index);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -106,6 +115,20 @@ function CelebrationModal({
               : `${Math.round(progress.minutes)} / ${progress.goal} min`}
           </strong>
         </div>
+
+        {leveledUp && (
+          <div className="celebrate-levelup" style={{ borderColor: level.current.color }}>
+            <span className="levelup-emblem" style={{ background: level.current.color }}>
+              {level.current.emoji}
+            </span>
+            <div>
+              <div className="levelup-title" style={{ color: level.current.color }}>
+                ¡Subiste de nivel!
+              </div>
+              <strong>Nivel {level.current.name}</strong>
+            </div>
+          </div>
+        )}
 
         {fresh.length > 0 && (
           <div className="celebrate-badges">
