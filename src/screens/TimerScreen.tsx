@@ -3,6 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useSessions } from '../SessionsContext';
 import { useCelebration } from '../components/Celebration';
 import { formatClock, toDayKey } from '../format';
+import {
+  clearActiveTimer,
+  loadActiveTimer,
+  saveActiveTimer,
+} from '../activeTimer';
 
 export default function TimerScreen() {
   const { dayKey = toDayKey() } = useParams();
@@ -10,19 +15,42 @@ export default function TimerScreen() {
   const { addSession } = useSessions();
   const { celebrate } = useCelebration();
 
-  const [accumulated, setAccumulated] = useState(0); // whole+frac seconds banked
-  const [runningSince, setRunningSince] = useState<number | null>(null);
-  const [, setTick] = useState(0);
-  const startedAtRef = useRef<number | null>(null);
+  // Restore an in-progress session for this day if one was persisted (left the
+  // screen, reloaded the page…). The clock keeps ticking from where it was.
+  const [restored] = useState(() => {
+    const t = loadActiveTimer();
+    return t && t.dayKey === dayKey ? t : null;
+  });
 
-  const [focus, setFocus] = useState('');
-  const [notes, setNotes] = useState('');
+  const [accumulated, setAccumulated] = useState(restored?.accumulatedSec ?? 0); // whole+frac seconds banked
+  const [runningSince, setRunningSince] = useState<number | null>(
+    restored?.runningSince ?? null,
+  );
+  const [, setTick] = useState(0);
+  const startedAtRef = useRef<number | null>(restored?.startedAt ?? null);
+
+  const [focus, setFocus] = useState(restored?.focus ?? '');
+  const [notes, setNotes] = useState(restored?.notes ?? '');
 
   useEffect(() => {
     if (runningSince == null) return;
     const id = setInterval(() => setTick((t) => t + 1), 250);
     return () => clearInterval(id);
   }, [runningSince]);
+
+  // Persist the live session so it survives leaving the screen or reloading.
+  // Only once it has actually started (startedAt set); reset/save/discard clear it.
+  useEffect(() => {
+    if (startedAtRef.current == null) return;
+    saveActiveTimer({
+      dayKey,
+      startedAt: startedAtRef.current,
+      accumulatedSec: accumulated,
+      runningSince,
+      focus,
+      notes,
+    });
+  }, [dayKey, accumulated, runningSince, focus, notes]);
 
   const elapsed =
     accumulated + (runningSince != null ? (Date.now() - runningSince) / 1000 : 0);
@@ -45,6 +73,7 @@ export default function TimerScreen() {
     startedAtRef.current = null;
     setFocus('');
     setNotes('');
+    clearActiveTimer();
   };
 
   const save = () => {
@@ -60,12 +89,16 @@ export default function TimerScreen() {
       focus: focus.trim() || undefined,
       notes: notes.trim() || undefined,
     });
+    startedAtRef.current = null;
+    clearActiveTimer();
     navigate(`/day/${dayKey}`);
     celebrate(saved);
   };
 
   const discard = () => {
     if (elapsed < 1 || confirm('¿Descartar esta sesión sin guardar?')) {
+      startedAtRef.current = null;
+      clearActiveTimer();
       navigate(-1);
     }
   };

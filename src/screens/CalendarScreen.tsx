@@ -1,15 +1,25 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSessions } from '../SessionsContext';
-import { formatDuration, toDayKey } from '../format';
+import { formatClock, formatDuration, toDayKey } from '../format';
 import { MonthCalendar } from '../components/MonthCalendar';
 import { GoalRing } from '../components/GoalRing';
 import { LevelBar } from '../components/Level';
 import { computeStreak, dailyProgress, loadGoals, minutesByDay } from '../gamification';
+import { activeElapsedSec, loadActiveTimer } from '../activeTimer';
 
 export default function CalendarScreen() {
   const navigate = useNavigate();
   const { totals, sessions } = useSessions();
+
+  // Surface an in-progress practice session so you can jump back into it.
+  const active = loadActiveTimer();
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [active?.startedAt]);
 
   const goals = loadGoals();
   const streak = computeStreak(sessions, goals);
@@ -42,6 +52,20 @@ export default function CalendarScreen() {
           🏆
         </button>
       </div>
+
+      {active && (
+        <button
+          className="resume-banner"
+          onClick={() => navigate(`/timer/${active.dayKey}`)}
+        >
+          <span className="resume-dot" data-running={active.runningSince != null} />
+          <span className="resume-text">
+            {active.runningSince != null ? 'Sesión en curso' : 'Sesión en pausa'}
+          </span>
+          <span className="resume-clock">{formatClock(activeElapsedSec(active))}</span>
+          <span className="resume-go">Seguir ›</span>
+        </button>
+      )}
 
       <div className="hero">
         <GoalRing

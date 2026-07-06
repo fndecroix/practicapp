@@ -409,6 +409,61 @@ textarea.input {
   margin-top: 4px;
 }
 
+/* ---- Resume-session banner ---- */
+.resume-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  background: var(--surface-alt);
+  border: 1px solid var(--accent);
+  border-radius: 14px;
+  text-align: left;
+}
+
+.resume-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.resume-dot[data-running='true'] {
+  background: var(--success, var(--accent));
+  animation: resume-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes resume-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.resume-text {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.resume-clock {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.resume-go {
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 14px;
+}
+
 /* ---- Timer ---- */
 .clock-wrap {
   text-align: center;
