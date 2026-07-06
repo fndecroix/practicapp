@@ -45,6 +45,14 @@ export default function CalendarScreen() {
         <button
           className="back-btn"
           style={{ marginLeft: 'auto' }}
+          onClick={() => navigate('/herramientas')}
+          aria-label="Metrónomo y afinador"
+          title="Metrónomo y afinador"
+        >
+          🎵
+        </button>
+        <button
+          className="back-btn"
           onClick={() => navigate('/logros')}
           aria-label="Logros"
           title="Logros"

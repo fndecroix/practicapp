@@ -5,6 +5,7 @@ import TimerScreen from './screens/TimerScreen';
 import AddSessionScreen from './screens/AddSessionScreen';
 import EditSessionScreen from './screens/EditSessionScreen';
 import AchievementsScreen from './screens/AchievementsScreen';
+import ToolsScreen from './screens/ToolsScreen';
 import NameGate from './screens/NameGate';
 import { useSync } from './SyncContext';
 
@@ -23,6 +24,7 @@ export default function App() {
         <Route path="/add/:dayKey" element={<AddSessionScreen />} />
         <Route path="/edit/:id" element={<EditSessionScreen />} />
         <Route path="/logros" element={<AchievementsScreen />} />
+        <Route path="/herramientas" element={<ToolsScreen />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>

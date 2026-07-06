@@ -409,6 +409,251 @@ textarea.input {
   margin-top: 4px;
 }
 
+/* ---- Tools: metronome + tuner ---- */
+.tool-card {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 16px;
+  margin-bottom: 16px;
+}
+
+.tool-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+
+.bpm-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+}
+
+.bpm-step {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 22px;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.bpm-step:active {
+  background: var(--primary-dark);
+}
+
+.bpm-display {
+  text-align: center;
+  min-width: 110px;
+}
+
+.bpm-value {
+  font-size: 56px;
+  font-weight: 200;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.bpm-unit {
+  color: var(--text-muted);
+  font-size: 12px;
+  letter-spacing: 2px;
+  margin-top: 4px;
+}
+
+.bpm-slider {
+  width: 100%;
+  margin: 16px 0 4px;
+  accent-color: var(--primary);
+}
+
+.beat-dots {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin: 14px 0;
+  min-height: 14px;
+}
+
+.beat-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: transform 0.08s ease, background 0.08s ease;
+}
+
+.beat-dot.accent {
+  border-color: var(--accent);
+}
+
+.beat-dot.on {
+  background: var(--primary);
+  border-color: var(--primary);
+  transform: scale(1.45);
+}
+
+.beat-dot.accent.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.beats-row {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.beats-chip {
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.beats-chip.sel {
+  background: var(--primary-dark);
+  border-color: var(--primary-dark);
+  color: #fff;
+}
+
+.beats-chip.tap {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.beats-chip.tap:active {
+  background: var(--accent);
+  color: #241505;
+}
+
+/* Tuner */
+.tune-note {
+  text-align: center;
+  font-size: 64px;
+  font-weight: 200;
+  line-height: 1.1;
+  min-height: 70px;
+  color: var(--text-muted);
+}
+
+.tune-note[data-ok='true'] {
+  color: var(--success);
+}
+
+.tune-oct {
+  font-size: 24px;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+.tune-freq {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 4px 0 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tune-gauge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tune-mark {
+  color: var(--text-muted);
+  font-size: 16px;
+  width: 16px;
+  text-align: center;
+}
+
+.tune-scale {
+  position: relative;
+  flex: 1;
+  height: 34px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.tune-center {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--success);
+  opacity: 0.6;
+}
+
+.tune-needle {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  width: 4px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: var(--accent);
+  transition: left 0.09s linear;
+}
+
+.tune-needle[data-ok='true'] {
+  background: var(--success);
+}
+
+.tune-cents {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  min-height: 18px;
+  margin: 6px 0 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.strings-row {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.string-chip {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.string-chip.sel {
+  background: var(--success);
+  border-color: var(--success);
+  color: #10261c;
+}
+
+.tune-error {
+  color: var(--danger);
+  font-size: 13px;
+  text-align: center;
+}
+
 /* ---- Resume-session banner ---- */
 .resume-banner {
   display: flex;
