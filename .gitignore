@@ -43,3 +43,6 @@ yarn-error.*
 
 # Claude Code local config
 .claude/
+
+# IDE
+.idea/
