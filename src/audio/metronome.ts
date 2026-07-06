@@ -58,7 +58,7 @@ export class Metronome {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.frequency.value = accent ? 1568 : 1047; // G6 / C6
-    gain.gain.setValueAtTime(accent ? 0.5 : 0.32, time);
+    gain.gain.setValueAtTime(accent ? 1.0 : 0.7, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + 0.06);
     osc.connect(gain).connect(ctx.destination);
     osc.start(time);

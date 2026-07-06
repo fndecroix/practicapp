@@ -87,7 +87,7 @@ export default function ToolsScreen() {
       if (p) {
         lastPitch.current = { p, at: now };
         setPitch(p);
-      } else if (!lastPitch.current || now - lastPitch.current.at > 800) {
+      } else if (!lastPitch.current || now - lastPitch.current.at > 5000) {
         setPitch(null);
       }
     };
