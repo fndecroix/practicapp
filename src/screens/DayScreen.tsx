@@ -44,13 +44,22 @@ export default function DayScreen() {
               <span className="session-duration">
                 {formatDuration(s.durationSec)}
               </span>
-              <button
-                className="session-del"
-                onClick={() => onDelete(s.id)}
-                aria-label="Borrar sesión"
-              >
-                ✕
-              </button>
+              <div className="session-actions">
+                <button
+                  className="session-edit"
+                  onClick={() => navigate(`/edit/${s.id}`)}
+                  aria-label="Editar sesión"
+                >
+                  ✎
+                </button>
+                <button
+                  className="session-del"
+                  onClick={() => onDelete(s.id)}
+                  aria-label="Borrar sesión"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
             {s.focus && <div className="session-focus">{s.focus}</div>}
             {s.notes && <div className="session-notes">{s.notes}</div>}

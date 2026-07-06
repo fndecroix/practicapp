@@ -19,6 +19,7 @@ type SessionsContextValue = {
   sessions: Session[];
   addSession: (s: NewSession) => Session;
   updateSession: (id: string, patch: Partial<Session>) => void;
+  editSession: (id: string, patch: Partial<NewSession>) => void;
   deleteSession: (id: string) => void;
   replaceAll: (sessions: Session[]) => void;
   reconcile: (remote: Session[], pushedIds: string[]) => void;
@@ -52,6 +53,22 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
   const updateSession = useCallback((id: string, patch: Partial<Session>) => {
     setSessions((prev) =>
       prev.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+    );
+  }, []);
+
+  /**
+   * Edit an existing session's fields. Because the sync backend only knows how
+   * to append and soft-delete (never update a row), an edit is modeled as
+   * delete-the-old + create-a-new: we swap the row in place for a copy carrying
+   * a brand-new id and `synced: false`. On the next sync the old id disappears
+   * locally (→ soft-deleted on the sheet) and the new id gets appended, so the
+   * edit propagates without the sheet ever overwriting it on a later pull.
+   */
+  const editSession = useCallback((id: string, patch: Partial<NewSession>) => {
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === id ? { ...s, ...patch, id: makeId(), synced: false } : s,
+      ),
     );
   }, []);
 
@@ -130,6 +147,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
       sessions,
       addSession,
       updateSession,
+      editSession,
       deleteSession,
       replaceAll,
       reconcile,
@@ -142,6 +160,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
       sessions,
       addSession,
       updateSession,
+      editSession,
       deleteSession,
       replaceAll,
       reconcile,

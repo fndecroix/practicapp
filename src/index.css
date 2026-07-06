@@ -371,12 +371,24 @@ textarea.input {
   font-weight: 700;
 }
 
+.session-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.session-edit,
 .session-del {
   color: var(--text-muted);
   font-size: 16px;
   width: 32px;
   height: 32px;
   border-radius: 8px;
+}
+
+.session-edit:hover {
+  color: var(--accent);
+  background: var(--surface);
 }
 
 .session-del:hover {
