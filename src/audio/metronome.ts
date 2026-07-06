@@ -11,6 +11,7 @@ export class Metronome {
   onBeat: ((beat: number) => void) | null = null;
 
   private ctx: AudioContext | null = null;
+  private out: AudioNode | null = null;
   private timer: number | null = null;
   private nextNoteTime = 0;
   private beat = 0;
@@ -22,7 +23,21 @@ export class Metronome {
   start(): void {
     if (this.timer != null) return;
     // Created here so it happens inside a user gesture (autoplay policy).
-    if (!this.ctx) this.ctx = new AudioContext();
+    if (!this.ctx) {
+      this.ctx = new AudioContext();
+      // Master boost into a compressor: lets us push clicks well past 1.0
+      // for phone speakers while the compressor stops them from clipping.
+      const boost = this.ctx.createGain();
+      boost.gain.value = 1.6;
+      const comp = this.ctx.createDynamicsCompressor();
+      comp.threshold.value = -16;
+      comp.knee.value = 6;
+      comp.ratio.value = 8;
+      comp.attack.value = 0.001;
+      comp.release.value = 0.08;
+      boost.connect(comp).connect(this.ctx.destination);
+      this.out = boost;
+    }
     void this.ctx.resume();
     this.beat = 0;
     this.nextNoteTime = this.ctx.currentTime + 0.08;
@@ -40,6 +55,7 @@ export class Metronome {
     this.stop();
     void this.ctx?.close();
     this.ctx = null;
+    this.out = null;
   }
 
   private schedule(): void {
@@ -57,12 +73,15 @@ export class Metronome {
     const ctx = this.ctx!;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.frequency.value = accent ? 1568 : 1047; // G6 / C6
-    gain.gain.setValueAtTime(accent ? 1.0 : 0.7, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.06);
-    osc.connect(gain).connect(ctx.destination);
+    // Square wave, up in the 2-4kHz band phone speakers resonate at: a pure
+    // sine barely registers on those tiny drivers, a harmonic-rich beep cuts.
+    osc.type = 'square';
+    osc.frequency.value = accent ? 2093 : 1568; // C7 / G6
+    gain.gain.setValueAtTime(accent ? 1.0 : 0.6, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
+    osc.connect(gain).connect(this.out!);
     osc.start(time);
-    osc.stop(time + 0.07);
+    osc.stop(time + 0.09);
   }
 
   /** Defer the UI callback until the click actually plays. */

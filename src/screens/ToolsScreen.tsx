@@ -78,6 +78,8 @@ export default function ToolsScreen() {
   const [pitch, setPitch] = useState<Pitch | null>(null);
   const lastPitch = useRef<{ p: Pitch; at: number } | null>(null);
 
+  const smoothCents = useRef<number | null>(null);
+
   const startTuner = async () => {
     setMicError('');
     const t = new Tuner();
@@ -85,8 +87,16 @@ export default function ToolsScreen() {
     t.onPitch = (p) => {
       const now = performance.now();
       if (p) {
-        lastPitch.current = { p, at: now };
-        setPitch(p);
+        // Steady the needle while a note is held (EMA over the cents), but
+        // reset instantly when the note changes so melodies track live.
+        const prev = lastPitch.current?.p;
+        smoothCents.current =
+          prev && prev.midi === p.midi && smoothCents.current != null
+            ? smoothCents.current * 0.75 + p.cents * 0.25
+            : p.cents;
+        const smoothed = { ...p, cents: Math.round(smoothCents.current) };
+        lastPitch.current = { p: smoothed, at: now };
+        setPitch(smoothed);
       } else if (!lastPitch.current || now - lastPitch.current.at > 5000) {
         setPitch(null);
       }
@@ -107,6 +117,7 @@ export default function ToolsScreen() {
     setTunerOn(false);
     setPitch(null);
     lastPitch.current = null;
+    smoothCents.current = null;
   };
 
   // Silence everything when leaving the screen.
