@@ -92,7 +92,7 @@ export default function ToolsScreen() {
         const prev = lastPitch.current?.p;
         smoothCents.current =
           prev && prev.midi === p.midi && smoothCents.current != null
-            ? smoothCents.current * 0.75 + p.cents * 0.25
+            ? smoothCents.current * 0.6 + p.cents * 0.4
             : p.cents;
         const smoothed = { ...p, cents: Math.round(smoothCents.current) };
         lastPitch.current = { p: smoothed, at: now };
@@ -129,7 +129,9 @@ export default function ToolsScreen() {
     [],
   );
 
-  const inTune = pitch != null && Math.abs(pitch.cents) <= 5;
+  const inTune = pitch != null && Math.abs(pitch.cents) <= 10;
+  // Map ±50 cents onto a ±45° swing; the needle points straight up when in tune.
+  const needleAngle = pitch ? Math.max(-50, Math.min(50, pitch.cents)) * 0.9 : 0;
 
   return (
     <div className="screen">
@@ -233,22 +235,21 @@ export default function ToolsScreen() {
               {pitch ? `${pitch.freq.toFixed(1)} Hz` : 'Tocá una cuerda…'}
             </div>
 
-            <div className="tune-gauge">
+            <div className="tune-dial" data-ok={inTune}>
+              <div className="tune-arc" />
+              <div className="tune-target" data-ok={inTune} />
+              <div
+                className="tune-needle"
+                data-ok={inTune}
+                data-live={pitch != null}
+                style={{ transform: `rotate(${needleAngle}deg)` }}
+              />
+              <div className="tune-pivot" data-ok={inTune} />
               <div className="tune-mark low">♭</div>
-              <div className="tune-scale">
-                <div className="tune-center" />
-                {pitch && (
-                  <div
-                    className="tune-needle"
-                    data-ok={inTune}
-                    style={{ left: `${50 + pitch.cents}%` }}
-                  />
-                )}
-              </div>
               <div className="tune-mark high">♯</div>
             </div>
-            <div className="tune-cents">
-              {pitch ? `${pitch.cents > 0 ? '+' : ''}${pitch.cents}¢` : ' '}
+            <div className="tune-cents" data-ok={inTune}>
+              {inTune ? '✓ Afinado' : pitch ? `${pitch.cents > 0 ? '+' : ''}${pitch.cents}¢` : ' '}
             </div>
 
             <div className="strings-row">

@@ -7,6 +7,11 @@
 
 const A4 = 440;
 
+/** The detector only trusts fundamentals in this band: ~an octave below the
+ *  cello's low C2 up to a violin's high E7. Anything outside is treated as noise. */
+const MIN_FREQ = 40;
+const MAX_FREQ = 2200;
+
 export type Pitch = {
   /** Detected fundamental, in Hz. */
   freq: number;
@@ -68,29 +73,36 @@ export function detectPitch(buf: Float32Array, sampleRate: number): number {
   const size = b.length;
   if (size < 32) return -1;
 
+  // Only correlate over lags that fall inside the instrument's frequency range.
+  // Starting past lag 0 skips the trivial self-match, roughly halves the work
+  // per frame (so the RAF loop keeps up on phones and the reading tracks your
+  // playing with less delay), and stops the detector from locking onto sub-audio
+  // long-lag peaks that used to surface as spurious octave-down readings.
+  const minLag = Math.max(1, Math.floor(sampleRate / MAX_FREQ));
+  const maxLag = Math.min(size - 1, Math.ceil(sampleRate / MIN_FREQ));
+  if (maxLag <= minLag) return -1;
+
   const c = new Float32Array(size);
-  for (let lag = 0; lag < size; lag++) {
+  for (let lag = minLag; lag <= maxLag; lag++) {
     let sum = 0;
     for (let j = 0; j < size - lag; j++) sum += b[j] * b[j + lag];
     c[lag] = sum;
   }
 
-  // Skip the initial peak at lag 0, then take the strongest peak after it.
-  let d = 0;
-  while (d < size - 1 && c[d] > c[d + 1]) d++;
+  // Strongest correlation peak in range → the fundamental period.
   let maxval = -1;
   let maxpos = -1;
-  for (let i = d; i < size; i++) {
-    if (c[i] > maxval) {
-      maxval = c[i];
-      maxpos = i;
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    if (c[lag] > maxval) {
+      maxval = c[lag];
+      maxpos = lag;
     }
   }
   if (maxpos <= 0) return -1;
 
   // Parabolic interpolation around the peak for sub-sample precision.
   let t0 = maxpos;
-  if (t0 > 0 && t0 < size - 1) {
+  if (t0 > minLag && t0 < maxLag) {
     const x1 = c[t0 - 1];
     const x2 = c[t0];
     const x3 = c[t0 + 1];
@@ -133,8 +145,7 @@ export class Tuner {
     const loop = () => {
       this.analyser!.getFloatTimeDomainData(this.buf);
       const f = detectPitch(this.buf, this.ctx!.sampleRate);
-      // Anything outside ~an octave below cello C2 .. violin E7 is noise.
-      this.onPitch?.(f > 40 && f < 2200 ? toPitch(f) : null);
+      this.onPitch?.(f > MIN_FREQ && f < MAX_FREQ ? toPitch(f) : null);
       this.raf = requestAnimationFrame(loop);
     };
     this.raf = requestAnimationFrame(loop);
