@@ -78,6 +78,14 @@ export function detectPitch(buf: Float32Array, sampleRate: number): number {
   const size = b.length;
   if (size < 32) return -1;
 
+  // Weight recent samples more heavily. A new note lands at the end of the
+  // buffer, so ramping the weight up toward the end lets it take over the
+  // correlation before it has fully filled the window — this is what keeps a
+  // slur or glissando tracking the note you're on instead of clinging to the
+  // one you left. The oldest sample keeps 35% weight so low notes, which need
+  // the whole window to show a couple of cycles, stay detectable.
+  for (let i = 0; i < size; i++) b[i] *= 0.35 + (0.65 * i) / (size - 1);
+
   // Only correlate over lags that fall inside the instrument's frequency range.
   // Starting past lag 0 skips the trivial self-match, roughly halves the work
   // per frame (so the RAF loop keeps up on phones and the reading tracks your
