@@ -12,6 +12,11 @@ const A4 = 440;
 const MIN_FREQ = 40;
 const MAX_FREQ = 2200;
 
+/** Analyser window, in samples (~23 ms at 44.1 kHz). Short enough that a slur or
+ *  glissando's new note dominates the buffer quickly — a 2048-sample window kept
+ *  ~46 ms of the previous note around and made legato lag badly. */
+const WINDOW = 1024;
+
 export type Pitch = {
   /** Detected fundamental, in Hz. */
   freq: number;
@@ -121,7 +126,7 @@ export class Tuner {
   private ctx: AudioContext | null = null;
   private stream: MediaStream | null = null;
   private analyser: AnalyserNode | null = null;
-  private buf = new Float32Array(2048);
+  private buf = new Float32Array(WINDOW);
   private raf = 0;
 
   get running(): boolean {
@@ -139,7 +144,7 @@ export class Tuner {
     await this.ctx.resume();
     const src = this.ctx.createMediaStreamSource(this.stream);
     this.analyser = this.ctx.createAnalyser();
-    this.analyser.fftSize = 2048;
+    this.analyser.fftSize = WINDOW;
     src.connect(this.analyser);
 
     const loop = () => {
